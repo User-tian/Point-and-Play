@@ -33,7 +33,7 @@ from .data.mixtures import (DistinctKeySampler, MultitrackMixtures, NLakhMixture
                             NSynthMixtures, collate_mixtures)
 from .data.multitrack import index_moisesdb, index_slakh, moisesdb_training_songs
 from .encoder import PointAndPlayEncoder
-from .text_cues import TextCueBank
+from .text_cues import TextCueBank, family
 
 DOMAINS = ("nsynth", "nlakh", "slakh", "moises")
 
@@ -168,6 +168,9 @@ def parse_args(argv=None):
     p.add_argument("--lambda-text", type=float, default=1.0, help="L_algn^t weight")
     p.add_argument("--lambda-sel", type=float, default=0.25, help="L_sel^a weight (0 disables)")
     p.add_argument("--sel-margin", type=float, default=0.0, help="hinge margin m of L_sel^a")
+    p.add_argument("--wrong-cue-exclude", choices=("instrument", "category"), default="instrument",
+                   help="L_sel^a skips wrong cues from the same instrument (paper) or the same "
+                        "category (NSynth/NLakh); Slakh/MoisesDB labels are already categories")
     p.add_argument("--lora-r", type=int, default=8)
     p.add_argument("--lora-alpha", type=int, default=16)
     p.add_argument("--lora-targets", default="qkv,fc1,fc2")
@@ -269,7 +272,8 @@ def main(argv=None):
         loss = args.lambda_inv * loss_inv + args.lambda_audio * loss_audio + args.lambda_text * loss_text
         loss_sel = torch.zeros((), device=device)
         if args.lambda_sel > 0:
-            wrong_valid = losses.wrong_audio_cue_mask(valid, labels)
+            key = family if args.wrong_cue_exclude == "category" and name in ("nsynth", "nlakh") else None
+            wrong_valid = losses.wrong_audio_cue_mask(valid, labels, key)
             wrong_codes = model.pool_multi(tokens, torch.roll(audio_cues, 1, dims=0))
             loss_sel = losses.selectivity_loss(wrong_codes, teacher, wrong_valid, args.sel_margin)
             loss = loss + args.lambda_sel * loss_sel

@@ -47,3 +47,11 @@ def test_wrong_audio_cue_mask_drops_padding_and_same_label_rolls():
     mask = losses.wrong_audio_cue_mask(valid, labels)
     # row b receives the cues of row b-1 (row 0 receives row 2)
     assert mask.tolist() == [[True, True], [True, False], [False, False]]
+
+
+def test_wrong_audio_cue_mask_can_exclude_same_category():
+    valid = torch.ones(3, 1, dtype=torch.bool)
+    labels = [["guitar_acoustic_001"], ["guitar_electronic_002"], ["bass_synthetic_003"]]
+    assert losses.wrong_audio_cue_mask(valid, labels).flatten().tolist() == [True, True, True]
+    by_category = losses.wrong_audio_cue_mask(valid, labels, key=lambda label: label.split("_")[0])
+    assert by_category.flatten().tolist() == [True, False, True]

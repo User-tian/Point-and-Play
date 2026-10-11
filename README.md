@@ -85,7 +85,7 @@ Setting one to 0 gives the corresponding leave-one-out ablation in Table 2.
 Every 3k steps the text-cued code is scored on 600 fixed NSynth-valid mixtures: the mean cosine to the
 music-CLAP embedding of the isolated note. The run directory contains:
 
-* `extractor_best.pt`: highest validation score. This checkpoint conditioned the paper's matched decoder.
+* `extractor_best.pt`: highest validation score (used by `scripts/reproduce.sh`).
 * `extractor.pt`: final step.
 * `ckpt_<step>.pt`: intermediate checkpoints.
 * `result.json`: validation history.
