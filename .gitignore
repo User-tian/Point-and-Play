@@ -1,0 +1,10 @@
+__pycache__/
+*.egg-info/
+.venv/
+assets/
+runs/
+caches/
+samples/
+*.pt
+*.npy
+*.wav

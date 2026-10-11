@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "point-and-play"
+version = "1.0.0"
+description = "Point-and-Play: instrument timbre cloning from music mixtures"
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+# Versions of the environment used to train and verify the released recipe.
+dependencies = [
+    "torch==2.5.1",
+    "torchaudio==2.5.1",
+    "numpy>=1.23.5,<2",
+    "laion-clap==1.1.7",
+    "transformers==5.12.1",
+    "julius==0.2.8",
+    "soundfile>=0.12",
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["point_and_play*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
