@@ -179,6 +179,11 @@ random generator, so the stream also depends on `--workers`; the paper used 4.
 }
 ```
 
+## License
+
+The code is released under the [MIT License](LICENSE). The assets fetched by
+`scripts/download_assets.py` and the datasets keep their own licenses.
+
 ## Acknowledgements
 
 This work builds on [LAION-CLAP](https://github.com/LAION-AI/CLAP) (music checkpoint
