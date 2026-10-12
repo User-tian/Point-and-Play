@@ -153,6 +153,26 @@ reed, string, synth and vocal) or a recording of the instrument category (`--cue
 pitch, 8 candidates are integrated with 50 Euler steps. The candidate whose music-CLAP embedding is
 closest to the timbre code is written as a 44.1-kHz WAV, and all scores go to `generation.json`.
 
+## Pretrained models
+
+Download `encoder.pt`, `matched_decoder.pt` and `neutral_decoder.pt` from
+[this folder](TODO-google-drive-link) and check them with `sha256sum -c SHA256SUMS`:
+
+```bash
+python -m point_and_play.generate --encoder encoder.pt --decoder matched_decoder.pt \
+    --mixture song.wav --text guitar --pitches 48 60 72 --out-dir samples/
+```
+
+These checkpoints were retrained with this repository's recipe:
+
+* **Encoder:** 18k steps, seed 2.
+* **Matched decoder:** 150k steps.
+* **Neutral decoder:** conditioned on clean music-CLAP embeddings.
+
+On the 27 held-out NSynth instruments they reach a CLAP score of 0.717 (text cue), 0.670
+(same-category audio cue) and 0.663 (target-instrument audio cue), with FAD 1.67 / 1.86 / 2.13.
+Over four training seeds the CLAP scores are 0.703 ± 0.010, 0.663 ± 0.007 and 0.663 ± 0.005.
+
 ## Reproducibility
 
 This repository is a cleaned-up version of the research code behind the paper. On the same
