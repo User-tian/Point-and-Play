@@ -13,6 +13,7 @@ license = { text = "MIT" }
 dependencies = [
     "torch==2.5.1",
     "torchaudio==2.5.1",
+    "torchvision==0.20.1",
     "numpy>=1.23.5,<2",
     "laion-clap==1.1.7",
     "transformers==5.12.1",
