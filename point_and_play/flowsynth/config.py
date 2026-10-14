@@ -30,9 +30,6 @@ class ModelConfig:
             raise ValueError("width must split into an even rotary head dimension")
 
 
-TINY_MODEL = ModelConfig(depth=1, width=64, heads=4)
-
-
 @dataclass(frozen=True)
 class TrainConfig:
     """150k steps, AdamW 1e-4, 2k warmup + cosine, 32 x 8 GPUs, condition dropout 0.1."""

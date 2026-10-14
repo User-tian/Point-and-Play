@@ -6,10 +6,8 @@ sources of the mixture expose a dry isolated recording (aligned with ``mix``; th
 teacher target) and a dry audio cue. With ``cue_mode="class"`` the audio cue comes from a
 *different* instrument of the same category, as in the paper.
 
-All randomness comes from a per-dataset ``random.Random(seed)``. The order of random draws
-follows the reference implementation used for the paper, so a given seed reproduces the
-same sample stream. Note that each DataLoader worker holds its own copy of that generator,
-so the stream also depends on ``num_workers`` (the paper used 4).
+All randomness comes from a per-dataset ``random.Random(seed)``. Each DataLoader worker holds
+its own copy of that generator, so the sample stream depends on ``num_workers``.
 """
 
 from __future__ import annotations

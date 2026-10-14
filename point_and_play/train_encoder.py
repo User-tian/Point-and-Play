@@ -19,7 +19,6 @@ import json
 import math
 import os
 import random
-import time
 from pathlib import Path
 
 import numpy as np
@@ -135,12 +134,6 @@ def atomic_save(payload, path: Path):
     os.replace(temporary, path)
 
 
-def atomic_json(payload, path: Path):
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2))
-    os.replace(temporary, path)
-
-
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", required=True, type=Path, help="run directory (must not exist)")
@@ -230,12 +223,10 @@ def main(argv=None):
 
     checkpoint_steps = {int(s) for s in args.ckpt_steps.split(",") if s}
     domain_rng = random.Random(args.seed + 12345)
-    history, best, started = [], {"metric": -1.0, "step": -1}, time.time()
+    best = {"metric": -1.0, "step": -1}
 
     def run_eval(step):
         result = evaluate(model, val_ds, val_bank, args)
-        result.update(step=step, elapsed_min=round((time.time() - started) / 60, 1))
-        history.append(result)
         if not math.isfinite(result["text_clapcos"]):
             raise FloatingPointError(f"non-finite validation score at step {step}")
         if result["text_clapcos"] > best["metric"]:
@@ -245,7 +236,6 @@ def main(argv=None):
         print(f"[encoder] step {step} EVAL text_cos={result['text_clapcos']:.4f} "
               f"audio_cos={result['audio_clapcos']:.4f} selectivity={result['selectivity']:.4f} "
               f"(best {best['metric']:.4f} @ {best['step']})", flush=True)
-        return result
 
     for step in range(args.steps):
         for group in optimizer.param_groups:
@@ -287,13 +277,11 @@ def main(argv=None):
                   f"text={loss_text.item():.4f} sel={loss_sel.item():.4f}", flush=True)
         if step > 0 and (step % args.eval_every == 0 or step in checkpoint_steps):
             run_eval(step)
-            atomic_json({"history": history, "best": best}, args.out / "result.json")
         if step > 0 and step in checkpoint_steps:
             atomic_save(model.checkpoint(config, step), args.out / f"ckpt_{step}.pt")
 
-    final = run_eval(args.steps)
+    run_eval(args.steps)
     atomic_save(model.checkpoint(config, args.steps), args.out / "extractor.pt")
-    atomic_json({"history": history, "best": best, "final": final}, args.out / "result.json")
     print(f"[encoder] done; best text_cos={best['metric']:.4f} @ step {best['step']}", flush=True)
 
 

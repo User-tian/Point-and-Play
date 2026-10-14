@@ -6,8 +6,8 @@ The paper recipe uses 8 GPUs x 32 notes (global batch 256):
         --latents caches/nsynth-train-latents --conditions caches/matched.npy --out runs/matched-decoder
 
 Checkpoints (``checkpoints/latest.pt`` every 5k steps, ``checkpoints/final.pt``) store model, EMA,
-optimizer, scheduler, sampler cursor and per-rank RNG; ``--resume`` continues bit-exactly with
-the same command and GPU count. Inference uses the EMA weights.
+optimizer, scheduler, sampler cursor and per-rank RNG; ``--resume`` continues an interrupted run
+with the same command and GPU count. Inference uses the EMA weights.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import torch.distributed as distributed
 from torch.nn.parallel import DistributedDataParallel
 
 from ..assets import sha256_file
-from .config import TINY_MODEL, ModelConfig, TrainConfig
+from .config import ModelConfig, TrainConfig
 from .latents import LatentDataset, cache_fingerprint
 from .model import FlowSynthDiT
 from .training import (GlobalBatchStream, TrainState, clone_as_ema, ema_update, load_checkpoint,
@@ -50,7 +50,6 @@ def parse_args(argv=None):
     p.add_argument("--checkpoint-every", type=int, default=5000)
     p.add_argument("--log-every", type=int, default=100)
     p.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
-    p.add_argument("--tiny-model", action="store_true", help="1-layer model for smoke tests")
     args = p.parse_args(argv)
     if args.steps < 1 or args.batch_per_gpu < 1 or not 0.0 <= args.condition_dropout < 1.0:
         p.error("invalid --steps, --batch-per-gpu or --condition-dropout")
@@ -83,7 +82,7 @@ def _mean_across_ranks(values, device, world_size):
     return tensor.cpu().tolist()
 
 
-def main(argv=None) -> None:
+def main(argv=None, model_config: ModelConfig | None = None) -> None:
     args = parse_args(argv)
     defaults = TrainConfig()
     rank, world_size, local_rank, device = _setup(args.device)
@@ -95,7 +94,8 @@ def main(argv=None) -> None:
 
     dataset = LatentDataset(args.latents)
     conditions = np.load(args.conditions, mmap_mode="r")
-    model_config = TINY_MODEL if args.tiny_model else ModelConfig()
+    if model_config is None:
+        model_config = ModelConfig()
     if conditions.shape != (len(dataset), model_config.cond_dim):
         raise SystemExit(f"condition cache must have shape [{len(dataset)}, {model_config.cond_dim}]")
     cache_hashes = {"latents": cache_fingerprint(args.latents), "conditions": sha256_file(args.conditions)}

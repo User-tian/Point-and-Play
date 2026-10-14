@@ -7,11 +7,13 @@ import torch
 
 from point_and_play.flowsynth import conditions
 from point_and_play.flowsynth import train as train_cli
-from point_and_play.flowsynth.config import TINY_MODEL
+from point_and_play.flowsynth.config import ModelConfig
 from point_and_play.flowsynth.latents import LatentDataset, write_cache
 from point_and_play.flowsynth.model import FlowSynthDiT
 from point_and_play.flowsynth.sampling import sample_euler
 from point_and_play.flowsynth.training import GlobalBatchStream
+
+TINY_MODEL = ModelConfig(depth=1, width=64, heads=4)
 
 
 def test_model_shapes_and_zero_initialized_output():
@@ -67,9 +69,10 @@ def test_latent_dataset_normalizes(tmp_path):
 def test_decoder_training_resumes_bit_exactly(tmp_path):
     latents, conditions_path = _tiny_caches(tmp_path)
     common = ["--latents", str(latents), "--conditions", str(conditions_path), "--device", "cpu",
-              "--tiny-model", "--batch-per-gpu", "4", "--steps", "6", "--log-every", "1"]
-    train_cli.main(common + ["--out", str(tmp_path / "straight"), "--checkpoint-every", "100"])
-    train_cli.main(common + ["--out", str(tmp_path / "resumed"), "--checkpoint-every", "3"])
+              "--batch-per-gpu", "4", "--steps", "6", "--log-every", "1"]
+    tiny = dict(model_config=TINY_MODEL)
+    train_cli.main(common + ["--out", str(tmp_path / "straight"), "--checkpoint-every", "100"], **tiny)
+    train_cli.main(common + ["--out", str(tmp_path / "resumed"), "--checkpoint-every", "3"], **tiny)
     # Simulate an interruption after step 3 by resuming from the step-3 checkpoint into a copy.
     interrupted = tmp_path / "interrupted"
     interrupted.mkdir()
@@ -77,7 +80,7 @@ def test_decoder_training_resumes_bit_exactly(tmp_path):
     (interrupted / "checkpoints").mkdir()
     (interrupted / "checkpoints" / "latest.pt").write_bytes(
         (tmp_path / "resumed" / "checkpoints" / "latest.pt").read_bytes())
-    train_cli.main(common + ["--out", str(interrupted), "--checkpoint-every", "3", "--resume"])
+    train_cli.main(common + ["--out", str(interrupted), "--checkpoint-every", "3", "--resume"], **tiny)
     straight = torch.load(tmp_path / "straight" / "checkpoints" / "final.pt", weights_only=False)
     resumed = torch.load(interrupted / "checkpoints" / "final.pt", weights_only=False)
     for key in ("model", "ema"):

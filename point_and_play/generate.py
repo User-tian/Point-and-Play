@@ -4,7 +4,9 @@
         --decoder runs/matched-decoder/checkpoints/final.pt --mixture song.wav --text guitar \
         --pitches 48 55 60 67 --velocity 100 --out-dir samples/
 
-Use ``--cue-audio clip.wav`` instead of ``--text`` for an audio cue. For each pitch, ``--candidates``
+The extractor sees one window of the mixture: ``--seconds`` long (4 s, as in training), starting
+``--offset`` seconds into the file. Choose a window where the target instrument is playing. Use
+``--cue-audio clip.wav`` instead of ``--text`` for an audio cue. For each pitch, ``--candidates``
 latents are integrated with ``--steps`` Euler steps; the candidate whose music-CLAP embedding is
 closest to the timbre code is written as a 44.1-kHz WAV.
 """
@@ -69,6 +71,8 @@ def main(argv=None) -> None:
     p.add_argument("--steps", type=int, default=50)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out-dir", type=Path, default=Path("samples"))
+    p.add_argument("--save-report", action="store_true",
+                   help="also write <out-dir>/generation.json (selected candidate + CLAP scores)")
     p.add_argument("--clap-checkpoint", type=Path, default=default_music_clap())
     p.add_argument("--vae", type=Path, default=default_vae())
     args = p.parse_args(argv)
@@ -117,10 +121,11 @@ def main(argv=None) -> None:
         report.append({"pitch": pitch, "file": str(path), "selected": best,
                        "clap_similarity": [round(float(s), 4) for s in similarity]})
         print(f"pitch {pitch}: candidate {best} (cos {float(similarity[best]):.3f}) -> {path}", flush=True)
-    (args.out_dir / "generation.json").write_text(json.dumps(
-        {"mixture": str(args.mixture), "offset": args.offset, "seconds": args.seconds,
-         "cue": args.text or str(args.cue_audio), "velocity": args.velocity, "steps": args.steps,
-         "notes": report}, indent=2))
+    if args.save_report:
+        (args.out_dir / "generation.json").write_text(json.dumps(
+            {"mixture": str(args.mixture), "offset": args.offset, "seconds": args.seconds,
+             "cue": args.text or str(args.cue_audio), "velocity": args.velocity, "steps": args.steps,
+             "notes": report}, indent=2))
 
 
 if __name__ == "__main__":

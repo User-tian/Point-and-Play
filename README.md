@@ -21,20 +21,25 @@ decodes to 44.1 kHz audio.
 
 ## Checkpoints
 
-Pre-trained checkpoints are hosted at the link above. Download and place them under
-`checkpoints/` using the paths shown below (any other location works too — just pass the paths
-explicitly).
+Pre-trained checkpoints are hosted on the Hugging Face Hub at
+[`User-tian/Point-and-Play`](https://huggingface.co/User-tian/Point-and-Play). Download the three
+files from that page (the "Files and versions" tab) and place them under `checkpoints/` using the
+paths shown below (any other location works too — just pass the paths explicitly):
+
+```bash
+# e.g. with the huggingface_hub CLI (pip install huggingface_hub):
+huggingface-cli download User-tian/Point-and-Play \
+    encoder.pt matched_decoder.pt neutral_decoder.pt --local-dir checkpoints/
+```
+
+Note: `scripts/download_assets.py` below fetches only the *third-party* assets (music-CLAP, the
+DiffRhythm VAE and the NLakh identity maps) — it does not download these trained checkpoints.
 
 | Model | Description | Default path |
 | --- | --- | --- |
 | Timbre extractor | LoRA music-CLAP + CGSP, 18k steps | `checkpoints/encoder.pt` |
 | Matched decoder | FlowSynth DiT conditioned on extractor codes | `checkpoints/matched_decoder.pt` |
 | Neutral decoder | Same DiT conditioned on clean music-CLAP embeddings (baselines/ablations) | `checkpoints/neutral_decoder.pt` |
-
-These checkpoints were retrained with this repository's recipe. On the 27 held-out NSynth
-instruments they reach a CLAP score of 0.717 (text cue), 0.670 (same-category audio cue) and
-0.663 (target-instrument audio cue), with FAD 1.67 / 1.86 / 2.13. Over four training seeds the
-CLAP scores are 0.703 ± 0.010, 0.663 ± 0.007 and 0.663 ± 0.005.
 
 The third-party assets (music-CLAP checkpoint, DiffRhythm VAE, NLakh identity maps) are fetched
 separately by `scripts/download_assets.py` — see below.
@@ -68,9 +73,18 @@ If you are not on CUDA 12.4, keep the same version trio from `pyproject.toml` an
 PyTorch wheel index URL to the one matching your system from the official
 [PyTorch install selector](https://pytorch.org/get-started/locally/).
 
-`download_assets.py` fetches each file from a pinned revision and checks its SHA-256. Set
-`POINTPLAY_ASSET_DIR` to keep the assets elsewhere. On first use, LAION-CLAP also downloads its
-RoBERTa text tower from the Hugging Face Hub. Unit tests run on CPU: `pytest`.
+`download_assets.py` fetches each file from a pinned revision and checks its SHA-256:
+
+- the music-CLAP checkpoint from
+  [`lukewys/laion_clap`](https://huggingface.co/lukewys/laion_clap) on the Hugging Face Hub,
+- the DiffRhythm VAE from
+  [`ASLP-lab/DiffRhythm-vae`](https://huggingface.co/ASLP-lab/DiffRhythm-vae) on the Hub, and
+- the official NLakh identity maps from
+  [`minju0821/musical_instrument_retrieval`](https://github.com/minju0821/musical_instrument_retrieval)
+  on GitHub.
+
+Set `POINTPLAY_ASSET_DIR` to keep the assets elsewhere. On first use, LAION-CLAP also downloads
+its RoBERTa text tower from the Hugging Face Hub. Unit tests run on CPU: `pytest`.
 
 ## How to run
 
@@ -85,12 +99,17 @@ python -m point_and_play.generate \
     --pitches 48 55 60 67 --velocity 100 --out-dir samples/
 ```
 
-The encoder sees a 4-s mixture window (`--offset`, `--seconds`). The cue is either a category
-name (`--text`; training used the NSynth categories bass, brass, flute, guitar, keyboard, mallet,
-organ, reed, string, synth and vocal) or a recording of the instrument category
-(`--cue-audio`). For every pitch, 8 candidates are integrated with 50 Euler steps. The candidate
-whose music-CLAP embedding is closest to the timbre code is written as a 44.1-kHz WAV, and all
-scores go to `generation.json`.
+The encoder does not listen to the whole song: it sees a single fixed-length window of the
+mixture, `--seconds` long (4 s, the length used in training), starting `--offset` seconds into
+the file. So `--offset 30` means "take the audio from 30.0 s to 34.0 s" — pick a moment where the
+instrument you want to clone is actually playing; a window where the target is silent cannot
+yield its timbre. If the file ends before the window does, the window is zero-padded (same as the
+training clips). The cue is either a category name (`--text`; training used the NSynth categories
+bass, brass, flute, guitar, keyboard, mallet, organ, reed, string, synth and vocal) or a
+recording of the instrument category (`--cue-audio`). For every pitch, 8 candidates are
+integrated with 50 Euler steps, and the candidate whose music-CLAP embedding is closest to the
+timbre code is written as a 44.1-kHz WAV. Pass `--save-report` to additionally write
+`generation.json` (the selected candidate and its CLAP similarity for every pitch).
 
 ### Training
 
@@ -141,8 +160,7 @@ random draws depend only on the row, so different encoders see identical mixture
 a 24-layer, 1024-wide, 16-head DiT with RoPE and AdaLN, trained with conditional flow matching
 for 150k steps (AdamW 1e-4, 2k warm-up + cosine decay, gradient clipping 1.0, bf16 autocast, EMA
 0.9999 used at inference, condition dropout 0.1, global batch 32 × 8 GPUs). `checkpoints/latest.pt`
-is written every 5k steps; re-running the same command with `--resume` continues bit-exactly on
-the same number of GPUs.
+is written every 5k steps, and `--resume` continues an interrupted run from it.
 
 ## Method overview
 
@@ -165,7 +183,8 @@ Point-and-Play is trained in two stages:
 ## Datasets
 
 Download [NSynth](https://magenta.tensorflow.org/datasets/nsynth) (train and valid),
-[NLakh](https://github.com/minju0821/musical_instrument_retrieval) (`rendered_single_inst`),
+[NLakh](https://github.com/minju0821/musical_instrument_retrieval) (`rendered_single_inst`,
+i.e. the official Nlakh-single release of Kim et al., 2022),
 [Slakh2100-redux at 16 kHz](http://www.slakh.com/) and
 [MoisesDB](https://github.com/moises-ai/moises-db), and arrange them as
 
@@ -178,7 +197,19 @@ $DATA_ROOT/
 ```
 
 or pass `--nsynth-root`, `--nlakh-root`, `--slakh-root` and `--moisesdb-root` to the encoder
-trainer. How the splits are used:
+trainer.
+
+**About NLakh.** NLakh is a synthetic dataset that must be *rendered*, not recorded: its authors
+(Kim et al., 2022) synthesized it by playing Lakh MIDI phrases with NSynth instrument samples.
+This repository does not contain the rendering code, and we did not re-render it ourselves — we
+use the authors' officially rendered **Nlakh-single** release (the `rendered_single_inst/`
+directory), downloaded from the Dropbox links in the
+[`dataset/README.md`](https://github.com/minju0821/musical_instrument_retrieval/blob/main/dataset/README.md)
+of the NLakh repository. If you prefer to render it from scratch, follow the procedure described
+in Sec. 3 of Kim et al. (2022) and the figure in that README. Either way, cite Kim et al. (see
+[Citation](#citation)).
+
+How the splits are used:
 
 - **Extractor training:** NSynth-train (80% of the notes of every instrument, chosen by a hash of
   the file name), NLakh-train, the Slakh2100 train split, and MoisesDB minus every 10th song.
@@ -186,14 +217,6 @@ trainer. How the splits are used:
   conditioning sources are NLakh phrases of the same instrument.
 - **Evaluation:** the 53 NSynth-valid instruments in sorted order. The paper's 27 held-out test
   instruments are the last 27.
-
-## Reproducibility
-
-This repository is a cleaned-up version of the research code behind the paper. On the same
-hardware it reproduces that code bitwise in every stage we checked: extractor training data and
-training steps, condition caches, VAE latents, decoder training state, and Euler-sampled latents.
-A seed fixes the training stream; each DataLoader worker holds its own copy of the dataset's
-random generator, so the stream also depends on `--workers` (the paper used 4).
 
 ## Citation
 
@@ -206,13 +229,25 @@ random generator, so the stream also depends on `--workers` (the paper used 4).
 }
 ```
 
+If you use NLakh, please also cite its authors:
+
+```bibtex
+@inproceedings{kim2022nlakh,
+  title     = {Show Me the Instruments: Musical Instrument Retrieval from Mixture Audio},
+  author    = {Kim, Kyungsu and Park, Minju and Joung, Haesun and Chae, Yunkee and Hong, Yeongbeom and Go, Seonghyeon and Lee, Kyogu},
+  booktitle = {Proceedings of the 23rd International Society for Music Information Retrieval Conference (ISMIR)},
+  year      = {2022}
+}
+```
+
 ## Acknowledgments
 
 This work builds on [LAION-CLAP](https://github.com/LAION-AI/CLAP) (music checkpoint
 `music_audioset_epoch_15_esc_90.14.pt`) and the
-[DiffRhythm VAE](https://huggingface.co/ASLP-lab/DiffRhythm-vae), whose license applies to its
-weights. The note synthesizer re-implements the FlowSynth decoder of Yang et al. (ICASSP 2026).
-The official NLakh identity maps come from
+[DiffRhythm VAE](https://huggingface.co/ASLP-lab/DiffRhythm-vae) (the variational autoencoder
+from the DiffRhythm music-generation project, whose license applies to its weights). The note
+synthesizer re-implements the FlowSynth decoder of Yang et al. (ICASSP 2026). The NLakh dataset
+and its official identity maps are due to Kim et al. (ISMIR 2022) and come from
 [minju0821/musical_instrument_retrieval](https://github.com/minju0821/musical_instrument_retrieval)
 (MIT).
 
