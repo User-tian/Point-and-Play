@@ -17,7 +17,7 @@ decodes to 44.1 kHz audio.
 
 - 🎧 [**Demo page**](https://user-tian.github.io/PAP_demo/)
 - 📄 [**Paper**](TODO-arxiv-link)
-- 💾 [**Checkpoints**](TODO-checkpoints-link)
+- 💾 [**Checkpoints**](https://huggingface.co/Usertian1/Point-and-Play)
 
 ## Checkpoints
 
