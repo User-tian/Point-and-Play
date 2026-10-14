@@ -64,22 +64,20 @@ def selectivity_loss(wrong_codes, targets, valid, margin: float = 0.0):
     return (_mixture_weights(valid, rows, batch) * F.relu(cosine - margin)).sum()
 
 
-def wrong_audio_cue_mask(valid, labels, key=None):
+def wrong_audio_cue_mask(valid, labels):
     """Valid slots for the mismatched audio cue obtained by rolling cues by one mixture.
 
     Slot (b, k) receives the cue of (b-1, k); it is kept only when both slots are real and the
-    two sources differ under ``key`` (default: the label itself, i.e. instrument identity for
-    NSynth/NLakh and stem class for Slakh/MoisesDB; pass ``text_cues.family`` to also drop
-    pairs from the same instrument category).
+    two sources have different labels (instrument identity for NSynth/NLakh, stem class for
+    Slakh/MoisesDB).
     """
     if valid.ndim != 2 or valid.dtype != torch.bool:
         raise ValueError("valid must be a [B,K] boolean tensor")
     batch, slots = valid.shape
     if len(labels) != batch or any(len(row) != slots for row in labels):
         raise ValueError("labels must match the [B,K] validity mask")
-    key = key or (lambda label: label)
     same = torch.tensor(
-        [[label is not None and labels[b - 1][k] is not None and key(label) == key(labels[b - 1][k])
+        [[label is not None and labels[b - 1][k] is not None and label == labels[b - 1][k]
           for k, label in enumerate(row)] for b, row in enumerate(labels)],
         dtype=torch.bool, device=valid.device)
     return valid & torch.roll(valid, 1, dims=0) & ~same
